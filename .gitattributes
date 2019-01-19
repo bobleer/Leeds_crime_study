@@ -1,2 +1,2 @@
-*.r linguist-language=R;
-*.html linguist-language=R;
+*.r linguist-language=r;
+*.html linguist-language=r;
