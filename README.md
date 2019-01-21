@@ -1,5 +1,5 @@
 # Leeds_crime_study
-2015.12 - 2018.11
+
 
 * Item page: [https://github.com/bobleer/Leeds_crime_study](https://github.com/bobleer/Leeds_crime_study)
 
