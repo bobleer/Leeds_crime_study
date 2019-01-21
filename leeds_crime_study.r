@@ -1,3 +1,11 @@
+################################################################################
+# The study of Leeds crimes in space and time
+# University of Sheffield
+# MSc Data Science
+# Registration No: 180234862
+# Item page: https://github.com/bobleer/Leeds_crime_study
+################################################################################
+
 library("tidyverse")
 library("dplyr")
 library("grid")
@@ -11,12 +19,15 @@ library("ggplot2")
 library("cowplot")
 library("zoo")
 
+options(scipen = 200)
+
 ################################################################################
-# Show all crime data in the UK
+# Show all crime data in the UK (The huge data need a ton of RAM.)
 ################################################################################
 
 #Set file directory
 all_crimes_dir <- "./all-street/"
+#Traversal
 all_crimes_csv <-
   list.files(
     path = all_crimes_dir,
@@ -31,13 +42,83 @@ all_combined_filename <- "[Combined]all-street_crimes.csv"
 read_all_csv <- lapply(all_crimes_csv,
                        function(x)
                          read.csv(x, stringsAsFactors = F, header = T))
-
+#Output combined csv
 all_crimes_path <- paste0(all_crimes_dir, all_combined_filename)
 #Save combined csv
 do.call(rbind, read_all_csv) %>%
   write.csv(all_crimes_path)
-
+#Read combined csv
 all_combined_crimes <- read.csv(all_crimes_path, header = TRUE)
+#Sum by month
+all_crimes_by_month <-
+  all_combined_crimes %>% group_by(Month) %>% summarise(crime_sum = n())
+
+ggplot() +
+  geom_point(
+    aes(x = as.Date(as.yearmon(Month)),
+        y = crime_sum),
+    size = all_crimes_by_month$crime_sum / 60000,
+    color = "#999999",
+    data = all_crimes_by_month
+  ) +
+  geom_smooth(
+    aes(x = as.Date(as.yearmon(Month)),
+        y = crime_sum),
+    data = all_crimes_by_month,
+    method = lm,
+    size = 0.7,
+    color = "#ffffff",
+    fill = "#FF635C",
+    se = TRUE
+  ) +
+  geom_hline(
+    yintercept = max(all_crimes_by_month$crime_sum),
+    color = "#eeeeee",
+    size = 1,
+    alpha = 0.5,
+    linetype = "dashed"
+  ) +
+  ggtitle("The trend of crimes in the UK") +
+  scale_x_date(
+    date_labels = "%Y-%m",
+    date_breaks = "3 months",
+    date_minor_breaks = "1 months"
+  ) +
+  xlab("Month (over 36 months)") +
+  ylab("The number of crimes") +
+  theme(
+    plot.title = element_text(
+      size = 16,
+      color = "#ffffff",
+      hjust = 0,
+      face = "bold"
+    ),
+    axis.title = element_text(
+      size = 14,
+      color = "#888888",
+      hjust = 0.5,
+      face = "bold"
+    ),
+    axis.text.x = element_text(
+      size = 12,
+      color = "#ffffff",
+      hjust = 0.5,
+      angle = 45,
+      face = "bold"
+    ),
+    axis.text.y = element_text(
+      size = 12,
+      angle = 45,
+      face = "bold",
+      color = "#ffffff"
+    ),
+    plot.background = element_rect(fill = "#2E2E2E",
+                                   color = NA),
+    plot.margin = unit(c(0.4, 0.4, 0.4, 0.4), "inches"),
+    panel.background = element_rect(fill = "#5E5E5E"),
+    panel.grid = element_line(color = "#888888"),
+    panel.grid.minor = element_line(color = "#727272")
+  )
 
 leaflet(all_combined_crimes) %>% addTiles() %>%
   addMarkers(clusterOptions = markerClusterOptions())
@@ -50,10 +131,8 @@ leedsShape <-
   readOGR(dsn = "./leeds_lsoa", layer = "england_lsoa_2011")
 
 deprivation2015 <-
-  read.csv(
-    "https://www.gov.uk/government/uploads/system/uploads/attachment_data/file/467774/File_7_ID_2015_All_ranks__deciles_and_scores_for_the_Indices_of_Deprivation__and_population_denominators.csv",
-    header = TRUE
-  )
+  read.csv("./Deprivation2015.csv",
+           header = TRUE)
 
 deprivation2015_sl <- deprivation2015 %>%
   select(
@@ -88,13 +167,14 @@ leedsShape@data <- left_join(leedsShape@data,
                              deprivation2015_sl,
                              by = c('code' = 'LSOA_code'))
 
-#transformed_leedsShape <- spTransform(leedsShape,
-#                                      CRS(
-#                                        "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-#                                      ))
-#leaflet(transformed_leedsShape) %>% addTiles() %>% addPolygons()
+transformed_leedsShape <- spTransform(leedsShape,
+                                      CRS(
+                                        "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+                                      ))
 
 tmap_mode("view")
+
+tm_shape(leedsShape) + tm_borders(lwd = 2, alpha = 0.5, col = "#666666") + tm_basemap(leaflet::providers$OpenMapSurfer.Roads)
 
 leeds_pop_map <- tm_shape(leedsShape) +
   tm_fill(
@@ -185,12 +265,12 @@ numCrimesByLSOA <- combined_crimes %>%
   group_by(LSOA.code) %>%
   summarise(Num_crimes = n())
 
-#leedsShape <-
-#  readOGR(dsn = "./leeds_lsoa", layer = "england_lsoa_2011")
+
+
 leedsShape@data <- left_join(leedsShape@data,
                              numCrimesByLSOA,
                              by = c('code' = 'LSOA.code'))
-leedsShape[is.na(leedsShape@data$Num_crimes)] <- 0
+leedsShape@data[is.na(leedsShape@data$Num_crimes)] <- 0
 
 tmap_mode("view")
 leeds_crime_map <- tm_shape(leedsShape) +
@@ -221,7 +301,21 @@ nation_data <- nation_data[, -1]
 nation_p.mat <- cor_pmat(nation_data)
 cor_nation <- cor(nation_data)
 
-leed_data <- leedsShape@data %>%
+
+leeds_data_by_nation <- leedsShape@data %>%
+  select(LSOA_name,
+         Total_population,
+         Income,
+         Employment,
+         Education,
+         Living_ENV,
+         Crime_Score)
+rownames(leeds_data_by_nation) <- leeds_data_by_nation[, 1]
+leeds_data_by_nation <- leeds_data_by_nation[, -1]
+leeds_by_nation_p.mat <- cor_pmat(leeds_data_by_nation)
+cor_leeds_by_nation <- cor(leeds_data_by_nation)
+
+leeds_data <- leedsShape@data %>%
   select(LSOA_name,
          Total_population,
          Income,
@@ -229,10 +323,10 @@ leed_data <- leedsShape@data %>%
          Education,
          Living_ENV,
          Num_crimes)
-rownames(leed_data) <- leed_data[, 1]
-leed_data <- leed_data[, -1]
-leed_p.mat <- cor_pmat(leed_data)
-cor_leed <- cor(leed_data)
+rownames(leeds_data) <- leeds_data[, 1]
+leeds_data <- leeds_data[, -1]
+leeds_p.mat <- cor_pmat(leeds_data)
+cor_leeds <- cor(leeds_data)
 
 ggcorrplot(
   title = "The UK crimes p-value significance",
@@ -250,8 +344,8 @@ ggcorrplot(
 ) + theme(text = element_text(face = "bold"))
 
 ggcorrplot(
-  title = "Leeds crimes p-value significance",
-  cor_leed,
+  title = "Leeds crimes p-value significance (Data from deprivation2015)",
+  cor_leeds_by_nation,
   method = "square",
   outline.color = "white",
   type = "full",
@@ -260,7 +354,22 @@ ggcorrplot(
   lab_size = 6,
   tl.srt = 45,
   pch.cex = 24,
-  p.mat = leed_p.mat,
+  p.mat = leeds_by_nation_p.mat,
+  colors = c("#6D9EC1", "white", "#E46726")
+) + theme(text = element_text(face = "bold"))
+
+ggcorrplot(
+  title = "Leeds crimes p-value significance",
+  cor_leeds,
+  method = "square",
+  outline.color = "white",
+  type = "full",
+  ggtheme = ggplot2::theme_get,
+  lab = TRUE,
+  lab_size = 6,
+  tl.srt = 45,
+  pch.cex = 24,
+  p.mat = leeds_p.mat,
   colors = c("#6D9EC1", "white", "#E46726")
 ) + theme(text = element_text(face = "bold"))
 
@@ -315,16 +424,54 @@ rownames(crime_and_spending) <- crime_and_spending[, 1]
 crime_and_spending <- crime_and_spending[, -1]
 cor(crime_and_spending)
 summary(lm(formula = crime_sum ~ Amount_sum, data = crime_and_spending))
-ggplot(data = crime_and_spending, 
-       aes(x = crime_sum, y = Amount_sum)) + 
-  geom_point() + 
-  geom_smooth(method = lm) + 
-  xlab("The number of crimes@Leeds") +
-  ylab("The amount of spending@West Yorkshire Police") + 
+
+ggplot(data = crime_and_spending,
+       aes(x = crime_sum,
+           y = as.integer(Amount_sum))) +
+  geom_point(size = 4.5,
+             color = "#999999") +
+  geom_smooth(
+    method = lm,
+    size = 0.7,
+    color = "#ffffff",
+    fill = "#2469FF",
+    se = TRUE
+  ) +
+  ggtitle("The correlation between the number of crimes and the amount of police in Leeds") +
+  xlab("The number of crimes@Leeds (over past 36 months)") +
+  ylab("The amount of spending@West Yorkshire Police") +
   theme(
-    axis.text = element_text(size = 11),
-    axis.text.y = element_text(angle = 90, hjust = 0.5),
-    axis.title = element_text(size = 12, face = "bold")
+    plot.title = element_text(
+      size = 16,
+      color = "#ffffff",
+      hjust = 0,
+      face = "bold"
+    ),
+    axis.title = element_text(
+      size = 14,
+      color = "#888888",
+      hjust = 0.5,
+      face = "bold"
+    ),
+    axis.text.x = element_text(
+      size = 12,
+      color = "#ffffff",
+      hjust = 0.5,
+      angle = 45,
+      face = "bold"
+    ),
+    axis.text.y = element_text(
+      size = 12,
+      angle = 45,
+      face = "bold",
+      color = "#ffffff"
+    ),
+    plot.background = element_rect(fill = "#2E2E2E",
+                                   color = NA),
+    plot.margin = unit(c(0.4, 0.4, 0.4, 0.4), "inches"),
+    panel.background = element_rect(fill = "#5E5E5E"),
+    panel.grid = element_line(color = "#888888"),
+    panel.grid.minor = element_line(color = "#727272")
   )
 
 ################################################################################
@@ -386,9 +533,9 @@ for (single_month in crimes_csv) {
       midpoint = 100
     ) +
     theme(
-      plot.background = element_rect(fill = "#5E5E5E", 
+      plot.background = element_rect(fill = "#5E5E5E",
                                      color = "#5E5E5E"),
-      panel.background = element_rect(fill = "#5E5E5E", 
+      panel.background = element_rect(fill = "#5E5E5E",
                                       color = "#5E5E5E")
     )
   
@@ -432,9 +579,9 @@ for (single_month in crimes_csv) {
     ) +
     scale_fill_manual(values = crime_colors) +
     theme(
-      plot.background = element_rect(fill = "#5E5E5E", 
+      plot.background = element_rect(fill = "#5E5E5E",
                                      color = "#5E5E5E"),
-      panel.background = element_rect(fill = "#5E5E5E", 
+      panel.background = element_rect(fill = "#5E5E5E",
                                       color = "#5E5E5E")
     )
   
@@ -485,7 +632,7 @@ for (single_month in crimes_csv) {
         vjust = 0
       ),
       fontface = "bold.italic",
-      size = 12,
+      size = 8,
       color = "#2E2E2E",
       show.legend = FALSE,
       nudge_x = 1.2
@@ -512,7 +659,7 @@ for (single_month in crimes_csv) {
       ),
       axis.text.y = element_text(size = 11,
                                  color = "#ffffff"),
-      plot.background = element_rect(fill = "#2E2E2E", 
+      plot.background = element_rect(fill = "#2E2E2E",
                                      color = NA),
       panel.background = element_rect(fill = "#5E5E5E"),
       panel.grid = element_line(color = "#888888")
@@ -530,9 +677,9 @@ for (single_month in crimes_csv) {
   print(
     cowplot::ggdraw(grid.arrange(plot01, plot02, plot03, ncol = 3)) +
       theme(
-        plot.background = element_rect(fill = "#5E5E5E", 
+        plot.background = element_rect(fill = "#5E5E5E",
                                        color = "#5E5E5E"),
-        panel.background = element_rect(fill = "#5E5E5E", 
+        panel.background = element_rect(fill = "#5E5E5E",
                                         color = "#5E5E5E")
       )
   )
@@ -583,7 +730,7 @@ plot04 <- ggplot() +
     color = "#ffffff",
     size = 4
   ) +
-  scale_fill_manual(values = crime_colors, 
+  scale_fill_manual(values = crime_colors,
                     name = "Leeds crime types") +
   scale_x_date(
     date_labels = "%Y-%m",
@@ -624,7 +771,7 @@ plot04 <- ggplot() +
     legend.text = element_text(#size = 12,
       hjust = 0,
       face = "bold"),
-    plot.background = element_rect(fill = "#2E2E2E", 
+    plot.background = element_rect(fill = "#2E2E2E",
                                    color = NA),
     plot.margin = unit(c(0.4, 0.4, 0.4, 0.4), "inches"),
     panel.background = element_rect(fill = "#5E5E5E"),
@@ -653,9 +800,9 @@ plot05 <-
   facet_wrap( ~ reorder(Crime.type,-crime_sum),
               scales = "free",
               ncol = 2) +
-  scale_discrete_manual(aesthetics = c("colour", "fill"), 
+  scale_discrete_manual(aesthetics = c("colour", "fill"),
                         values = crime_colors) +
-  xlab("") + 
+  xlab("") +
   ylab("") +
   theme(
     axis.text.x = element_text(
@@ -665,14 +812,14 @@ plot05 <-
     ),
     axis.text.y = element_text(face = "bold",
                                color = "#ffffff"),
-    plot.background = element_rect(fill = "#2E2E2E", 
+    plot.background = element_rect(fill = "#2E2E2E",
                                    color = NA),
     plot.margin = unit(c(0.4, 0.4, 0.4, 0.4), "inches"),
     panel.background = element_rect(fill = "#5E5E5E"),
     panel.grid = element_line(color = "#888888"),
     panel.grid.minor = element_line(color = "#727272"),
     strip.background = element_rect(fill = "#242424"),
-    strip.text = element_text(color = "#ffffff", 
+    strip.text = element_text(color = "#ffffff",
                               face = "bold")
   )
 
@@ -691,9 +838,9 @@ print(
     plot05, plot04, ncol = 2, widths = c(1, 2.5)
   )) +
     theme(
-      plot.background = element_rect(fill = "#5E5E5E", 
+      plot.background = element_rect(fill = "#5E5E5E",
                                      color = "#5E5E5E"),
-      panel.background = element_rect(fill = "#5E5E5E", 
+      panel.background = element_rect(fill = "#5E5E5E",
                                       color = "#5E5E5E")
     )
 )
