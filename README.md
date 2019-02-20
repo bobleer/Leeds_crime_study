@@ -11,7 +11,7 @@
 ## Dataset
 
 | Dataset Name | From | Last updated | Licence | Source |
-| --- | --- | --- | --- | --- |
+| :- | :- | :- | :- | :- |
 | Crime data in the street level | Police.uk | Nov-2018 | Open Government Licence v3.0 | https://data.police.uk/data/ |
 | English indices of deprivation | Ministry of Housing, Communities & Local Government | 30-Sep-2015 | Open Government Licence v3.0 | https://www.gov.uk/government/statistics/english-indices-of-deprivation-2015 |
 | LSOA for Leeds | UK Data Service | 2011 | Open Government Licence v3.0 | https://borders.ukdataservice.ac.uk/bds.html |
@@ -20,7 +20,7 @@
 ## R Package
 
 | Package Name | Source |
-| --- | --- |
+| :- | :- |
 | tidyverse |	https://CRAN.R-project.org/package=tidyverse |
 | dplyr |	https://CRAN.R-project.org/package=dplyr |
 | grid | https://www.R-project.org/ |
