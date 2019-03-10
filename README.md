@@ -33,6 +33,7 @@
 | ggplot2 |	http://ggplot2.org |
 | cowplot |	https://github.com/wilkelab/cowplot |
 | zoo |	http://doi.org/10.18637/jss.v014.i06 |
+| mapdeck | https://github.com/SymbolixAU/mapdeck |
 
 ## Preview
 
